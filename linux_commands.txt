@@ -1,0 +1,430 @@
+Linux commands
+
+to change permission 
+
+chmod
+> chmod 777 filename
+
+to remove a write permission from others
+
+> chmod o -w sample.txt
+or 
+
+> chmod 775 filename
+
+
+#################Grep Command##############################
+
+SYNOPSIS
+       grep [OPTIONS] PATTERN [FILE...]
+       grep [OPTIONS] -e PATTERN ... [FILE...]
+       grep [OPTIONS] -f FILE ... [FILE...]
+
+DESCRIPTION
+       grep  searches  for  PATTERN  in  each  FILE.  A FILE of “-” stands for
+       standard input.  If no FILE is given, recursive  searches  examine  the
+       working  directory,  and nonrecursive searches read standard input.  By
+       default, grep prints the matching lines.
+
+       In addition, the variant programs egrep, fgrep and rgrep are  the  same
+       as  grep -E,  grep -F,  and  grep -r, respectively.  These variants are
+       deprecated, but are provided for backward compatibility.
+
+OPTIONS
+   Generic Program Information
+       --help Output a usage message and exit.
+	   
+
+> cat sample.txt | grep mail 
+
+or
+
+> grep mail sample.txt
+
+
+*  To ignore case
+> grep -i Mail sample.txt
+
+* To get the line number of the pattern text in the file 
+
+> grep -in Mail sample.txt
+> grep -ino Mail sample.txt
+
+* to get the numbers
+
+> cat sample.txt | grep [0-9]
+
+* to print the data lines with mail in lines
+
+> cat sample.txt | grep -E mail
+
+*  to print the lines without mail in the lines
+
+> cat sample.txt | grep -iv mail
+
+* if you want data with exact words
+
+> grep -w mail sample.txt
+
+* with line numbers.
+
+> grep -win mail sample.txt
+
+
+## to get an idea where the match was found to get few lines of text 
+
+grep -win -B 4 mail sample.txt   ( to get 4 lines before the match is found)
+
+grep -win -A 4 mail sample.txt   ( to get 4 lines After the match is found) 
+
+grep -win -C 2 mail sample.txt   ( to get 2 lines before and after the match is found)
+
+
+##  to get match in all files in current directory
+
+> grep -win mail ./*
+
+** to get recursive search in current directory
+
+> grep -winr mail ./*
+
+## to check what files contain the match
+
+> grep -wirl mail ./*
+
+## to get how many matches in each file 
+
+> grep -wirc mail ./*
+
+
+
+
+################## AWK commands ######################
+
+
+
+SYNOPSIS
+       mawk  [-W  option]  [-F value] [-v var=value] [--] 'program text' [file
+       ...]
+       mawk [-W option] [-F value] [-v var=value] [-f program-file] [--] [file
+       ...]
+
+DESCRIPTION
+       mawk  is an interpreter for the AWK Programming Language.  The AWK lan‐
+       guage is useful for manipulation of data files, text retrieval and pro‐
+       cessing,  and  for prototyping and experimenting with algorithms.  mawk
+       is a new awk meaning it implements the AWK language as defined in  Aho,
+       Kernighan  and Weinberger, The AWK Programming Language, Addison-Wesley
+       Publishing, 1988.  (Hereafter referred to as the AWK book.)  mawk  con‐
+       forms  to  the Posix 1003.2 (draft 11.3) definition of the AWK language
+       which contains a few features not described in the AWK book,  and  mawk
+       provides a small number of extensions.
+
+       An  AWK  program  is  a sequence of pattern {action} pairs and function
+       definitions.  Short programs are entered on the  command  line  usually
+       enclosed  in ' ' to avoid shell interpretation.  Longer programs can be
+       read in from a file with the -f option. 
+	   
+The basic function of awk is to search files for lines (or other units of text) that contain certainpatterns.  
+When a line matches one of the patterns,awkperforms specified actions on that line.awkkeeps processing input lines in this way until the end of the input file is reached.
+
+** each rule has pattern and action
+
+ > awk ’/foo/ { print $0 }’ BBS-list
+ 
+ /foo/  - is a pattern 
+ {print $0 }  -  is a action   
+ 
+ *pattern is seperated by / /
+ ** action is represented in { }
+ 
+ $0 in action represents whole line
+ $1 in action represents first cloumn and so on.
+ 
+ Thereare single-quotes around theawkprogram so that the shell won’t interpret any of it as special shellcharacters.
+ 
+ ## Field seperator in awk
+ Sometimes the separator in some files is not space nor tab but something else. You can specify it using –F option:
+ 
+ > awk -F: '{ print }' BBS-list  ( -F  for field seperator )  (or -fs)
+ 
+ 
+# using multiple commands
+ > echo "Hello Tom" | awk '{$2="Adam"; print $0}'
+ 
+ 
+ ## Reading script from file.
+ 
+ using -f
+ 
+ testfile.txt
+ 
+ '{ print $1 is Ship }'  
+ 
+ ## 
+ 
+ > awk -F: -f testfile BBC-list 
+ 
+ ## to get the last field or column
+ 
+ > awk '{ print $NF }' BBC-list
+ 
+ 
+ Built-in Variables
+ 
+ The following list shows some of the built-in variables:
+
+FIELDWIDTHS     Specifies the field width.
+
+RS     Specifies the record separator.
+
+FS     Specifies the field separator.
+
+OFS  Specifies the Output Field separator.
+
+ORS  Specifies the Output Record separator.
+
+By default, the OFS variable is the space, you can set the OFS variable to specify the separator you need 
+
+
+ex: 
+
+ > awk 'BEGIN{ORS=":"} {print $0}' BBS-list
+ 
+ > awk 'BEGIN{OFS="-"} {print $1,$2,$3}' BBS-list
+ 
+ > awk 'BEGIN{FIELDWIDTHS="3 4 3"}{print $1,$2,$3}' testfile
+ 
+ 
+ **AWK Standard Options
+
+The -v option
+
+This option assigns a value to a variable. It allows assignment before the program execution.
+
+ex:  echo | awk -v home=$HOME '{print "My home is " home}'
+
+
+** counting number of matched patterns in a file.
+
+awk '/a/{++cnt} END {print "Count = ", cnt}' ./Documents/BBS-list
+
+
+NR and FNR
+
+FNR is works on Multiple files and FNR value resets to 1 when processing second file whereas NR doesnt do that.
+
+ex: awk '{ print $1,"FNR="FNR}' ./Documents/BBS-list ./Documents/BBS-list
+
+
+Conditional statements 
+
+##### if else
+ex: 
+
+awk '{
+ 
+if ($1 > 30)
+ 
+{
+ 
+x = $1 * 3
+ 
+print x
+ 
+} else
+ 
+{
+ 
+x = $1 / 2
+ 
+print x
+ 
+}}' testfile
+
+
+#####  While  
+
+	
+$ awk '{
+ 
+sum = 0
+ 
+i = 1
+ 
+while (i < 5)
+ 
+{
+ 
+sum += $i
+ 
+i++
+ 
+}
+ 
+average = sum / 3
+ 
+print "Average:",average
+ 
+}' testfile
+
+
+
+
+Format Specifiers
+
+This list shows the format specifiers you can use with printf:
+
+c              Prints numeric output as a string.
+
+d             Prints an integer value.
+
+e             Prints scientific numbers.
+
+f               Prints float values.
+
+o             Prints an octal value.
+
+s             Prints a text string.
+
+
+
+Operators
+
+logical :  &&  (AND) ,  || (OR) ,  ! ( NOT)
+
+Ternary :  condition expression ? statement1 : statement2
+
+         ex:   awk 'BEGIN { a = 10; b = 20; (a > b) ? max = a : max = b; print "Max =", max}'
+		 
+String concatination :   (  "space" is the operator )
+
+         ex: awk 'BEGIN { str1 = "Hello, "; str2 = "World"; str3 = str1 str2; print str3 }'
+		 
+Regular expression operator :   
+         Match :  ( ~ )
+		 Not Match ( !~)
+		 
+		 ex: awk '$0 ~7' ./Documents/BBS-list
+		 
+		 ex: awk '$0 !~7' ./Documents/BBS-list
+		 
+		 
+##  AWK Regular Expression
+
+Dot
+
+* It matches any single character except the end of line character. For instance, the following example matches fin, fun, fan etc.
+
+       ex:  echo -e "cat\nbat\nfun\nfin\nfan" | awk '/f.n/'
+	   
+Start of line
+
+*  It matches the start of line. For instance, the following example prints all the lines that start with pattern The.
+  
+    ex: echo -e "This\nThat\nThere\nTheir\nthese" | awk '/^The/'
+	
+End of line
+
+* It matches the end of line. For instance, the following example prints the lines that end with the letter n.
+    ex: echo -e "knife\nknow\nfun\nfin\nfan\nnine" | awk '/n$/'
+	
+Match character set
+
+* It is used to match only one out of several characters. For instance, the following example matches pattern Call and Tall but not Ball.
+  
+      ex: echo -e "Call\nTall\nBall" | awk '/[CT]all/'
+	  
+Exclusive set
+
+* In exclusive set, the carat negates the set of characters in the square brackets. For instance, the following example prints only Ball.
+
+    ex:   echo -e "Call\nTall\nBall" | awk '/[^CT]all/'
+	
+	
+	
+	
+	
+	
+	
+	##############################  Find command ########################################
+	
+	
+	
+	
+	
+	
+	
+	###############################  ulimit command  ######################################
+
+
+
+
+		 
+		 
+		 
+
+
+
+  ############################## Cron Tab ################################################
+  
+  The cron daemon is a long-running process that executes commands at specific dates and times. You can use this to schedule activities, either as one-time events or as recurring tasks.
+  
+  To schedule one-time only tasks with cron, use the at or batch command.
+  
+  The crontab command creates a crontab file containing commands and instructions for the cron daemon to execute. You can use the crontab command with the following options:
+  
+crontab -a filename 	 -     Install filename as your crontab file. On many systems, this command is executed simply as crontab filename (i.e., without the -a option).
+crontab -e 	            -       Edit your crontab file, or create one if it doesn't already exist.
+crontab -l 	          -            Display your crontab file.
+crontab -r          - 	          Remove your crontab file.
+crontab -v         -        	Display the last time you edited your crontab file. (This option is available on only a few systems.)
+crontab -u user 	   -        Used in conjunction with other options, this option allows you to modify or view the crontab file of user. When available, only administrators can use this option. 
+  
+  
+  Each entry in a crontab file consists of six fields, specifying in the following order:
+  
+  minute(s) hour(s) day(s) month(s) weekday(s) command(s)
+  
+  The fields are separated by spaces or tabs. The first five are integer patterns and the sixth is the command to execute. The following table briefly describes each of the fields:
+  
+  The fields are separated by spaces or tabs. The first five are integer patterns and the sixth is the command to execute.
+  
+  minute 	0-59 	   -          The exact minute that the command sequence executes
+hour 	0-23 	         -           The hour of the day that the command sequence executes
+day 	1-31 	        -            The day of the month that the command sequence executes
+month 	1-12 	     -           The month of the year that the command sequence executes
+weekday 	0-6 	 -            The day of the week that the command sequence executes (Sunday = 0, Monday = 1, Tuesday = 2, and so forth)
+command 	Special 	-     The complete sequence of commands to execute. The command string must conform to Bourne shell syntax. Commands, executables (such as scripts), or combinations are acceptable. 
+
+ 
+
+
+
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+	   
+	   
+	   
+
+
+
+
+
+
+
+
+
+
+
