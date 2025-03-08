@@ -1,3 +1,5 @@
+Hive issue and topics researched 
+--------------------------------
 Hive
 
 to check partition location of external tables
