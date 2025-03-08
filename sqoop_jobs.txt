@@ -1,0 +1,544 @@
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--m 1 \
+--username 'root' \
+-P \
+--table city \
+--target-dir /user/sqoop 
+
+
+# storing delta or incremental data to same data location
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--m 1 \
+--username 'root' \
+-P \
+--table city \
+--target-dir /user/sqoop \
+--append
+
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--m 1 \
+--username 'root' \
+--password 1234 \
+--table city \
+--delete-target-dir /user/sqoop 
+
+
+sqoop eval \
+--connect "jdbc:mysql://localhost:3306/sakila" \
+--username root \
+-P \
+--query "select * from city limit 10"
+
+
+
+# importing data as Avro data File.
+
+sqoop import-all-tables \
+-m 10 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--as-avrodatafile \
+--warehouse-dir /user/sqoop/avro_data
+
+
+sqoop import \
+-m  4 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table city \
+--as-avrodatafile \
+--target-dir /user/sqoop/city_table
+
+Note: issue faced is 
+  Error: org.apache.avro.reflect.ReflectData.addLogicalTypeConversion(Lorg/apache/avro/Conversion;)V
+  [2019-08-19 14:53:00.741]Container [pid=11618,containerID=container_1566191452977_0005_01_000003] is running 413526528B beyond the 'VIRTUAL' memory limit. Current usage: 261.8 MB of 1 GB physical memory used; 2.5 GB of 2.1 GB virtual memory used. Killing container.
+  
+To resolve.
+
+Sqoop uses 1.8.0 of avro and there are other Hadoop components using 1.7.5 or 1.7.4 avro. 
+
+Please add the following property after 'import': -Dmapreduce.job.user.classpath.first=true
+
+
+sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m  4 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table city \
+--target-dir /user/sqoop/cityt \
+--as-avrodatafile \
+--append
+
+* even though job is comleting successfully mapper task are killed.
+
+To resolve
+
+
+
+
+This will create .avro files (data files) in the specified hdfs location and .avsc file (schema file) in the local host directory.
+To create further create tables using schema need to put schema in hdfs location and make use.
+
+example -  
+
+CREATE EXTERNAL TABLE city
+
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+
+LOCATION 'hdfs:///user/hive/city'
+
+TBLPROPERTIES ('avro.schema.url'='hdfs:///user/sqoop/avro_schema/city.avsc');
+
+// Location is the location of the avro data files and 
+   TBLPROPERTIES is the table properties that is the file with .avsc extension  both the file locations should be different, otherwise it will throw an error.
+
+Note: To validate the avro data that has been imported
+   > avro-tools
+   
+
+########
+
+sqoop import-all-tables -Dmapreduce.job.user.classpath.first=true \
+-m 10 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--as-avrodatafile \
+--warehouse-dir /user/sqoop/avro_data
+--outdir avro_generated
+
+
+
+
+### sqoop importing data as a paraquet file format
+
+sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 4 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table city \
+--as-parquetfile \
+--outdir /home/hduser \
+--delete-target-dir \
+--target-dir /user/sqoop/paraquet_data/cityt 
+
+2019-08-19 17:52:44,108 INFO mapreduce.Job: Job job_1566191452977_0011 failed with state FAILED due to: Task failed task_1566191452977_0011_m_000003
+
+when checked mapred job log 
+Exception in thread "main" java.io.IOException: java.net.ConnectException: Call From cepl-Lenovo-V130-14IKB/127.0.1.1 to localhost:10020 failed on connection exception: java.net.ConnectException: Connection refused;
+
+To resolve check with the database service is running or stopped.
+
+
+### sqoop importing data as textfile
+
+sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 4 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table city \
+--delete-target-dir \
+--target-dir /user/sqoop/text_data/cityt \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' 
+
+
+### sqoop import with compression
+
+* Note : To use compression enable 
+  --compress control argument in sqoop 
+  then use --compression-codec argument
+  
+ sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 4 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table city \
+--delete-target-dir \
+--target-dir /user/sqoop/text_data/cityt \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--compress 
+
+* Note : This will create .gz part files in the HDFS directory.
+
+error occured during 
+
+ Application application_1566277684741_0002 failed 2 times due to AM Container for appattempt_1566277684741_0002_000002 exited with exitCode: 1
+Failing this attempt.Diagnostics: [2019-08-20 16:06:21.262]Exception from container-launch
+
+reason :
+Application master is not responding.
+* or effects when you have multiple sl4j-bindings in the classpath( i.e sqoop/lib)
+
+* default compression is .gz (Gzip) 
+* compression techniques which are written in core-site.xml only those compression codec we can use.
+
+ sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 4 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table city \
+--delete-target-dir \
+--target-dir /user/sqoop/text_data/cityt \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--compress \
+--compression-codec ord.apache.hadoop.io.compress.SnappyCodec
+
+* it will throw error if library is not accessibel in cluster
+ERROR tool.ImportTool: Import failed: com.cloudera.sqoop.io.UnsupportedCodecException: ord.apache.hadoop.io.compress.SnappyCodec
+
+
+
+### Handling column data which may consist a delimiter you want to specify.
+
+sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 1 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+-P \
+--table tempdata \
+--delete-target-dir \
+--enclosed-by "" \
+--target-dir /user/sqoop/text_data/tempdata
+
+
+sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 1 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+-P \
+--table tempdata \
+--delete-target-dir \
+--target-dir /user/sqoop/text_data/tempdata \
+--escaped-by \\
+
+
+## Datatypes
+
+sqoop import -Dmapreduce.job.user.classpath.first=true \
+-m 1 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+--table category \
+--delete-target-dir \
+--target-dir /user/sqoop/text_data/category
+
+
+
+
+### Handling primary key issue while importing all-tables 
+## autoreset-to-one-mapper will run the job for the table with no primary key to 1 mapper
+
+sqoop import-all-tables -Dmapreduce.job.user.classpath.first=true \
+-m 3 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password-file '/user/hduser/passwords/mysql_pssd.txt' \
+--as-avrodatafile \
+--warehouse-dir /user/sqoop/sakila_avro \
+--autoreset-to-one-mapper \
+--outdir /home/hduser/avro_generated
+
+
+create external table sakila.city
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+LOCATION 'hdfs:///user/sqoop/sakila_avro/city'
+TBLPROPERTIES ('avro.schema.url'='hdfs:///user/sqoop/avro_md/avro_generated/city.avsc'); 
+
+Error :
+
+FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. java.lang.RuntimeException: 
+MetaException(message:org.apache.hadoop.hive.serde2.SerDeException Encountered AvroSerdeException determining schema. 
+Returning signal schema to indicate problem: Unable to read schema from given path: hdfs:///user/sqoop/avro_md/city.avsc)
+
+Assumption:
+
+assumption the avro jar file in hive library unable to process the .avsc file ( avro jar is older one)
+
+workaround
+
+create external table sakila.city
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+LOCATION 'hdfs:///user/sqoop/sakila_avro/city'
+TBLPROPERTIES ('avro.schema.literal'='{
+  "type" : "record",
+  "name" : "city",
+  "doc" : "Sqoop import of city",
+  "fields" : [ {
+    "name" : "city_id",
+    "type" : [ "null", "int" ],
+    "default" : null,
+    "columnName" : "city_id",
+    "sqlType" : "5"
+  }, {
+    "name" : "city",
+    "type" : [ "null", "string" ],
+    "default" : null,
+    "columnName" : "city",
+    "sqlType" : "12"
+  }, {
+    "name" : "country_id",
+    "type" : [ "null", "int" ],
+    "default" : null,
+    "columnName" : "country_id",
+    "sqlType" : "5"
+  }, {
+    "name" : "last_update",
+    "type" : [ "null", "long" ],
+    "default" : null,
+    "columnName" : "last_update",
+    "sqlType" : "93"
+  } ],
+  "tableName" : "city"
+  }');
+
+note: 
+'avro.schema.literal' can be used to use schema from .avsc file.
+
+Actual Issue 
+
+schema file directory was incorrect.
+
+
+### creating avro internal table  
+
+create table sakila.b_city
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+TBLPROPERTIES ('avro.schema.url'='hdfs:///user/sqoop/avro_md/avro_generated/city.avsc'); 
+
+
+
+sqoop import-all-tables -Dmapreduce.job.user.classpath.first=true \
+-m 3 \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password-file '/user/hduser/passwords/mysql_pssd.txt' \
+--as-parquetfile \
+--warehouse-dir /user/sqoop/sakila_parquet \
+--autoreset-to-one-mapper \
+--outdir /home/hduser/parquet_generated
+
+
+##### Creating Parquet table 
+
+create external table if not exists address_p(
+address_id int,
+address string,
+address2 string,
+district string,
+city_id int,
+postal_code string,
+phone string,
+location binary,
+last_update bigint)
+stored as parquet
+location '/user/sqoop/sakila_parquet/address' ;
+
+
+CREATE EXTERNAL TABLE `address`(
+  `address_id` int COMMENT '', 
+  `address` string COMMENT '', 
+  `address2` string COMMENT '', 
+  `district` string COMMENT '', 
+  `city_id` int COMMENT '', 
+  `postal_code` string COMMENT '', 
+  `phone` string COMMENT '', 
+  `location` binary COMMENT '', 
+  `last_update` bigint COMMENT '')
+
+
+####
+
+* first it executes the query and it gets the metadata of column datatype 
+* based on this info it will create pojo classes , using that java it wil compile to jar file (job jar)
+
+
+sqoop eval \
+--connect jdbc:mysql://localhost:3306/sakila \
+-m 1 \
+--username root \
+-P \
+--table city \
+--where city.city_id <= 30
+
+
+
+### creating a hive table from sqoop import
+
+sqoop import-all-tables \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+-m 1 \
+--create-hive-table \
+--hive-overwrite \
+--hive-import \
+--fields-terminated-by ',' \
+--warehouse-dir /user/hive/sakila 
+
+## mapping columns to hive types ( is possible only when importing single table )
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username=root \
+--password=1234 \
+-m 1 \
+--create-hive-table \
+--table address \
+--hive-overwrite \
+--hive-import \
+--fields-terminated-by ',' \
+--target-dir /user/hive/sakilaa \
+--map-column-hive "location=binary"
+
+
+Logging initialized using configuration in jar:file:/home/hduser/ecosystem/apache-hive-3.1.1-bin/lib/hive-common-3.1.1.jar!/hive-log4j2.properties Async: true
+
+
+create external table sakila.address
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+LOCATION 'hdfs:///user/sqoop/sakila_avro/address'
+TBLPROPERTIES ('avro.schema.url'='hdfs:///user/sqoop/avro_md/avro_generated/address.avsc'); 
+
+
+
+### data skewing happens ( to avoid that we can use boundary-query)
+
+* Data Skewing :   Data skew primarily refers to a non uniform distribution in a dataset. Skewed distribution can follow common distributions
+
+some mappers wont get the data and some mappers are filled with loads of data and can be take more time then expected , so  boundary-query.
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username root \
+-P \
+-m 1 \
+--table customer \
+--warehouse-dir /user/sqoop/sakila_customer \
+--delete-target-dir \
+--boundary-query "SELECT min(customer_id) , max(customer_id) from customer where customer_id BETWEEN 200 and 300"
+
+#### filtering data at source
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username root \
+-P \
+-m 1 \
+--target-dir /user/sqoop/sakila_customer \
+--delete-target-dir \
+--query "select * from customer WHERE \'$CONDITIONS\' year(last_update) = 2006"
+
+
+
+### creating parquet hive import and overwriting with txt data in location. will give vertex failure error while querying . file is not paraquet 
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username root \
+-P \
+-m 1 \
+--target-dir /user/sqoop/sakil_customer_test \
+--delete-target-dir \
+--query "select * from customer where \$CONDITIONS" \
+--hive-import \
+--hive-database hadoop_dev \
+--hive-table customer \
+--hive-overwrite
+
+
+
+
+#####  Incremental loads to hdfs 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+SELECT t.* FROM `actor` AS t LIMIT 1
+hdfs dfs -cat /user/sqoop/sakila_avro/actor
+
+
+sqoop import \
+--connect jdbc:mysql://localhost:3306/sakila \
+--username root \
+--password 1234 \
+--table address \
+--hive-import \
+--create-hive-table \
+--hive-database default \
+--hive-table address_paraquet \
+--as-parquetfile \
+-m 1 \
+--target-dir /user/hive/paraquet
+
+
+
+
