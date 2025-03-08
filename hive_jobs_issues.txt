@@ -1,0 +1,304 @@
+Hive
+
+to check partition location of external tables
+ex: 
+DESCRIBE EXTENDED log_messages PARTITION (year=2012, month=1, day=2);
+
+Restoring a deleted manage table data. ( with trash feature in hive )
+
+Actually, if you enable the Hadoop Trash feature, which is not on by
+default, the data is moved to the .Trash directory in the distributed
+filesystem for the user, which in HDFS is /user/$USER/.Trash. To enable
+this feature, set the property fs.trash.interval to a reasonable positive
+number. It’s the number of minutes between “trash checkpoints”; 1,440
+would be 24 hours. While it’s not guaranteed to work for all versions of
+all distributed filesystems, if you accidentally drop a managed table with
+important data, you may be able to re-create the table, re-create any
+partitions, and then move the files from .Trash to the correct directories
+(using the filesystem commands) to restore the data.
+
+
+ALTER TABLE log_messages ADD IF NOT EXISTS
+PARTITION (year = 2011, month = 1, day = 1) LOCATION '/logs/2011/01/01'
+PARTITION (year = 2011, month = 1, day = 2) LOCATION '/logs/2011/01/02'
+PARTITION (year = 2011, month = 1, day = 3) LOCATION '/logs/2011/01/03'
+
+
+# changing columns and position
+
+ALTER TABLE log_messages
+CHANGE COLUMN hms hours_minutes_seconds INT
+COMMENT 'The hours, minutes, and seconds part of the timestamp'
+AFTER severity;
+
+# changes fileformat for particular partition 
+
+ALTER TABLE log_messages
+PARTITION(year = 2012, month = 1, day = 1)
+SET FILEFORMAT SEQUENCEFILE;
+
+### creating parquet table 
+
+create external table if not exists address_p(
+address_id int,
+address string,
+address2 string,
+district string,
+city_id int,
+postal_code string,
+phone string,
+location binary,
+last_update bigint)
+stored as parquet
+location '/user/sqoop/sakila_parquet/address' ;
+
+* the data when selected is not sorted.
+
+
+### creating metastore in mysql
+
+The necessary tables required for the metastore are missing in MySQL. Manually create the tables and restart hive metastore.
+
+The schema files for MySQL will be available under the path $HIVE_HOME/scripts/metastore/upgrade/mysql/.
+
+cd $HIVE_HOME/scripts/metastore/upgrade/mysql/
+
+< Login into MySQL >
+
+mysql> drop database IF EXISTS hive_metastore;
+mysql> create database hive_metastore;
+mysql> use hive_metastore;
+mysql> source /path/hive-schema-3.1.0.mysql.sql;
+
+hive --service metastore 
+
+
+## printing headers with data
+
+set hive.cli.print.header=true
+
+## capturing the ddl script of a table
+
+show create table <tablename>;
+
+
+###########whole script to all tables ddl script in hive#############
+
+Firstly,you should know this two commends:
+ 1. show tables; -- get all tables
+ 2. show create table tableName  --get the tableName's DDL
+
+Secondly,write a shell script to work.
+1. hive -e "use databaseName; show tables;" > all_tables.txt
+2. the shell script :
+     #!/bin/bash
+     cat all_tables.txt |while read LINE
+     do
+     hive -e "use kkgoo;show create table $LINE" >>tablesDDL.txt
+     done
+Now, the file tablesDDL.txt contain all the content what you want.
+
+#############
+
+
+
+create table test2(name string, city string, address string, phone string)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+"escapeChar"    = "\\n"
+)
+STORED AS TEXTFILE;
+
+
+
+
+###### Name node is safe mode (issue)
+
+Cause
+During start up, NameNode loads the filesystem state from fsimage and edits log file. It then waits for data nodes to report their blocks so that it does not prematurely start replicating the blocks though, 
+enough replicas already exist in the cluster.
+
+During this time, NameNode stays in safe mode. A safe mode for NameNode is essentially a read-only mode for the HDFS cluster, it does not allow any modifications to file system or blocks. Normally, 
+NameNode disables safe mode automatically at the beginning.
+
+If required, HDFS can be placed in safe mode explicitly using bin/hadoop dfsadmin -safemode command. The NameNode front page shows whether safe mode is on or off.
+Resolution
+
+A workaround to this issue is to manually move the NameNode out of safe mode. Before doing this, confirm you know and understand why the NameNode is stuck in safe mode by reviewing the status 
+of all DataNodes and the NameNode logs.  In some cases manually disabling safemode can lead to dataloss.
+
+
+Please note that you must run the command using the HDFS OS user which is the default super user for HDFS. Otherwise, 
+you will encounter the following error: "Access denied for user Hadoop. Superuser privilege is required".
+ 
+
+    Run the command below using the HDFS OS user to disable safe mode:
+
+    sudo -u hdfs hadoop dfsadmin -safemode leave
+
+    After attempting to disable safe mode, try to write to the HDFS using the below command:
+
+    [root@centos-1 ~]# hadoop fs -copyFromLocal .bash_history /tmp/
+    [root@centos-1 ~]# hadoop fs -ls /tmp
+
+
+####
+
+
+Hive arguments:
+   --create-hive-table                         Fail if the target hive
+                                               table exists
+   --external-table-dir <hdfs path>            Sets where the external
+                                               table is in HDFS
+   --hive-database <database-name>             Sets the database name to
+                                               use when importing to hive
+   --hive-delims-replacement <arg>             Replace Hive record \0x01
+                                               and row delimiters (\n\r)
+                                               from imported string fields
+                                               with user-defined string
+   --hive-drop-import-delims                   Drop Hive record \0x01 and
+                                               row delimiters (\n\r) from
+                                               imported string fields
+   --hive-home <dir>                           Override $HIVE_HOME
+   --hive-import                               Import tables into Hive
+                                               (Uses Hive's default
+                                               delimiters if none are
+                                               set.)
+   --hive-overwrite                            Overwrite existing data in
+                                               the Hive table
+   --hive-partition-key <partition-key>        Sets the partition key to
+                                               use when importing to hive
+   --hive-partition-value <partition-value>    Sets the partition value to
+                                               use when importing to hive
+   --hive-table <table-name>                   Sets the table name to use
+                                               when importing to hive
+   --map-column-hive <arg>                     Override mapping for
+                                               specific column to hive
+                                               types.
+
+################
+
+Hive stores a list of partitions for each table in its metastore. If, however, new partitions are directly added to HDFS , 
+the metastore (and hence Hive) will not be aware of these partitions unless the user runs either of below ways to add the newly add partitions.
+
+hive> alter table <db_name>.<table_name> add partition(`date`='<date_value>') location '<hdfs_location_of the specific partition>';
+
+or
+
+Run metastore check with repair table option
+
+hive> Msck repair table <db_name>.<table_name>
+
+which will add metadata about partitions to the Hive metastore for partitions for which such metadata doesn't already exist. 
+In other words, it will add any partitions that exist on HDFS but not in metastore to the metastore.
+
+###############
+
+
+hive
+
+#  set to false, the types of columns in Metastore can be changed from any type to any other type. After such a type change,
+
+
+
+hive.metastore.disallow.incompatible.col.type.changes = false
+
+## Hive also supports creating temporary tables , temporary table is is only visible for the current session user.
+
+The data of the
+temporary table is stored in the user's scratch directory, such as /tmp/hive-<username> .
+
+#  CREATE TABLE LIKE this create table but does not copy data
+
+# enabling disabling table drop.
+   Enable/Disable the table's protection; NO_DROP or OFFLINE . NO_DROP prevents a
+ table from being dropped, while OFFLINE prevents data (not metadata) from
+ being queried in a table:
+
+  ex: alter table employee enable no_drop;
+        alter table employee disable no_drop;
+		
+
+####
+
+### Hive Enable Compression ####
+
+--ENable intermediate and output compression.
+
+SET hive.exec.compress.intermediate=true;
+SET mapred.map.output.compression.codec=org.apache.hadoop.io.compress.GZipCodec;
+SET hive.exec.compress.output=true;
+SET mapred.output.compression.codec=org.apache.hadoop.io.compress.GZipCodec;
+
+
+In Sequence file
+
+SET mapred.output.compression.type=BLOCK;
+
+
+####
+
+
+
+Hive: How To Find Invisible Characters
+
+Invisible characters are things like: horizontal tab, "null" byte, bell, etc. These are generally control characters: hex 00 thru hex 1f and hex 7f.
+
+Invisible characters are a problem because if they are embedded in a string you are searching for, you probably won't find it because you will type in what you see and the database stores what you see plus one or more hidden characters.
+
+For a more complete description of this and related problems see: Where Did These Funny Characters Come From?.
+
+If you have got past the stage of complete bafflement about what is in your data, and you now have some suspicion that particular hidden characters are present you can search for them using the ascii() function and using character literals in the form 'u\xxxx' where xxxx is a hexadecimal number.
+
+The tab character is hex 09 (= decimal 9, = octal 011). So, if I suspect that some values in a column have a tab character in position 50, I can search for them like this:
+
+      select
+          ascii(substring(line, 50, 1)) as possible_tab
+      from
+          hdkehb_fixed_length_table 
+      where
+          ascii(substring(line, 50, 1)) = 9 
+      limit 3;
+ 
+      +--------------+--+ 
+      | possible_tab | 
+      +--------------+--+ 
+      | 9            | 
+      | 9            | 
+      | 9            | 
+      +--------------+--+ 
+      3 rows selected (8.087 seconds)
+    
+
+That's a pretty specific suspicion, suggesting that I already kniow quite a lot about this data. If I think there is a tab somewhere in a column value, but I don't know where, I can use the chr() function like this:
+
+      select
+          instr(line, chr(9)) as position_of_tab 
+      from
+          hdkehb_fixed_length_table 
+      where
+          line like concat('%', chr(9), '%') 
+      limit 3;
+  
+      +-----------------+--+ 
+      | position_of_tab |
+      +-----------------+--+ 
+      | 49              | 
+      | 50              | 
+      | 47              | 
+      +-----------------+--+ 
+      3 rows selected (8.099 seconds) 
+    
+
+We are using the function chr(9) in two ways:
+
+    to find the position of the first tab in the line using instr
+    to find all rows that contain a tab character anywhere in the line, using the like expression with the SQL wildcard '%'
+
+The chr() function only works for values from zero to 127. This is not what the documentation says. If you search on chr(226) for example, you will not get a match, even if that byte value exists in the data.
+
+You can also search on the Unicode Code Point using the contruct \uxxxx where x is a hexadecimal digit. The number is the Code Point, not the value stored in the bytes. As an example, the Euro symbol (€) has Unicode Code Point \u20ac. If you search for this, you will find the Euro symbol although it is stored as hex:e2 82 ac in UTF-8 (and as hex:80 in Windows-1252).
+
+The approaches described here are simple and quick. If you have a strong idea of what may be causing a problem these are good tools to test your suspicions. If not, then you need to take a more comprehensive approach as described in Where Did These Funny Characters Come From?. The comprehensive approach is essential if you are looking to load files of similar data on a regular basis. It isn't difficult and it can save you a lot of ad-hoc trouble-shooting. 
+
+
