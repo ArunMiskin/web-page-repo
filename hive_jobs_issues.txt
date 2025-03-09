@@ -1,5 +1,5 @@
 Hive issue and topics covered
-#Hive issues added by aruntech
+hive issue added by arun
 --------------------------------
 Hive
 
